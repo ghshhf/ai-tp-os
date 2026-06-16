@@ -1,0 +1,61 @@
+{
+  "name": "AI-TP OS Dev Container",
+  "dockerComposeFile": ["../docker-compose.yml"],
+  "service": "ai-tp-core",
+  "workspaceFolder": "/ai-tp-os",
+  "shutdownAction": "stopCompose",
+  
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.black-formatter",
+        "charliermarsh.ruff",
+        "ms-toolsai.jupyter",
+        "redhat.vscode-yaml",
+        "ms-azuretools.vscode-docker",
+        "GitHub.copilot",
+        "GitHub.copilot-chat"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/ai-tp-os/.venv/bin/python",
+        "python.formatting.provider": "black",
+        "python.linting.enabled": true,
+        "python.linting.ruffEnabled": true,
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": true
+        }
+      }
+    }
+  },
+  
+  "forwardPorts": [11434, 3000, 8080, 8081, 6379],
+  "portsAttributes": {
+    "11434": {
+      "label": "Ollama API",
+      "onAutoForward": "notify"
+    },
+    "3000": {
+      "label": "AI-TP Apps",
+      "onAutoForward": "openBrowser"
+    },
+    "8080": {
+      "label": "AI-TP Gateway",
+      "onAutoForward": "notify"
+    }
+  },
+  
+  "postCreateCommand": "pip install -e . && ai-tp init",
+  "postStartCommand": "ai-tp status",
+  
+  "remoteUser": "root",
+  "overrideCommand": true
+}

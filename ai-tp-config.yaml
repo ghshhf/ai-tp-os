@@ -1,0 +1,209 @@
+# AI-TP OS - 统一配置文件
+# 以底层系统为本体，整合应用层配置
+
+# 系统模式
+mode: standalone  # standalone | distributed | p2p
+
+# 日志配置
+logging:
+  level: INFO
+  format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+  file: /data/ai-tp.log
+
+# ============================================
+# 推理后端配置 (计算层)
+# ============================================
+inference:
+  # 默认后端：本地优先，云 API 备用
+  default_backend: ollama
+  
+  backends:
+    ollama:
+      enabled: true
+      host: http://localhost:11434
+      default_model: llama3.2
+      timeout: 120
+      models:
+        - name: llama3.2
+          size: 2GB
+          capabilities: [text, chat]
+        - name: llama3.2-vision
+          size: 8GB
+          capabilities: [text, chat, vision]
+        - name: qwen2.5
+          size: 4GB
+          capabilities: [text, chat]
+        - name: nomic-embed-text
+          size: 300MB
+          capabilities: [embedding]
+    
+    openai:
+      enabled: false
+      api_key: ${OPENAI_API_KEY}
+      base_url: https://api.openai.com/v1
+      default_model: gpt-4o-mini
+    
+    anthropic:
+      enabled: false
+      api_key: ${ANTHROPIC_API_KEY}
+      default_model: claude-3-5-sonnet-20241022
+    
+    gemini:
+      enabled: false
+      api_key: ${GOOGLE_API_KEY}
+      default_model: gemini-1.5-flash
+  
+  # 自动降级策略
+  fallback:
+    enabled: true
+    order: [ollama, openai, anthropic, gemini]
+
+# ============================================
+# 存储层配置 (libai-storage)
+# ============================================
+storage:
+  backend: sqlite  # sqlite | redis | memory | hybrid
+  shared: true     # 跨 Agent 共享记忆
+  
+  sqlite:
+    db_path: /data/ai-tp.db
+    pool_size: 5
+  
+  redis:
+    url: redis://localhost:6379/0
+    password: null
+  
+  memory:
+    max_size: 10000  # 最大条目数
+  
+  # 存储命名空间（自动按应用隔离）
+  namespaces:
+    - name: global
+      shared: true
+    - name: agent_memory
+      shared: true
+    - name: rag_documents
+      shared: true
+    - name: app_state
+      shared: false
+
+# ============================================
+# 网络层配置 (ai-tp-discovery)
+# ============================================
+network:
+  enabled: true
+  mode: hybrid  # local | mdns | dht | hybrid
+  
+  discovery:
+    port: 8472
+    interval: 30
+    bootstrap_nodes: []
+  
+  gateway:
+    port: 8080
+    host: 0.0.0.0
+    cors_origins: ["*"]
+  
+  p2p:
+    enabled: false
+    identity_key: null
+    relay_enabled: true
+    relay_pool_size: 10
+  
+  nat:
+    enabled: true
+    stun_servers:
+      - stun.l.google.com:19302
+      - stun1.l.google.com:19302
+    hole_punching: true
+
+# ============================================
+# 计算层配置 (ai-tp-scheduler)
+# ============================================
+scheduler:
+  enabled: false
+  backend: local  # local | distributed
+  
+  local:
+    max_workers: 4
+    gpu_enabled: false
+  
+  distributed:
+    node_id: null  # 自动生成
+    heartbeat_interval: 30
+    task_timeout: 300
+
+# ============================================
+# 应用层配置
+# ============================================
+apps:
+  # 应用注册表（整合 awesome-llm-apps 的 100+ 模板）
+  registry:
+    - name: starter_ai_agents
+      path: apps/starter_ai_agents
+      description: "入门级 AI Agent 模板"
+      apps:
+        - ai_travel_agent
+        - ai_music_generator
+        - ai_meme_generator
+        - ai_data_analysis
+        - ai_medical_imaging
+    
+    - name: advanced_ai_agents
+      path: apps/advanced_ai_agents
+      description: "高级 AI Agent 模板"
+      apps:
+        - ai_deep_research
+        - ai_vc_due_diligence
+        - ai_financial_coach
+    
+    - name: multi_agent_teams
+      path: apps/multi_agent_teams
+      description: "多智能体协作模板"
+      apps:
+        - ai_competitor_intelligence
+        - ai_finance_team
+        - ai_recruitment_team
+    
+    - name: rag_tutorials
+      path: apps/rag_tutorials
+      description: "RAG 教程模板"
+      apps:
+        - basic_rag
+        - agentic_rag
+        - multimodal_rag
+    
+    - name: voice_ai_agents
+      path: apps/voice_ai_agents
+      description: "语音 AI Agent 模板"
+      apps:
+        - voice_rag_agent
+        - customer_support_voice
+    
+    - name: mcp_ai_agents
+      path: apps/mcp_ai_agents
+      description: "MCP Agent 模板"
+      apps:
+        - browser_mcp_agent
+        - github_mcp_agent
+        - notion_mcp_agent
+
+# ============================================
+# 安全与隐私
+# ============================================
+security:
+  encryption:
+    enabled: true
+    algorithm: AES-256-GCM
+  
+  privacy:
+    anonymize_telemetry: true
+    local_only: false  # true = 完全离线模式
+
+# ============================================
+# 监控与诊断
+# ============================================
+monitoring:
+  enabled: true
+  metrics_port: 9090
+  health_check_interval: 30

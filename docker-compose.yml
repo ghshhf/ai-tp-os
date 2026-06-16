@@ -1,0 +1,122 @@
+# AI-TP OS - Docker Compose 编排
+# 以底层系统为本体，整合应用层服务
+
+version: "3.9"
+
+services:
+  # AI-TP OS 核心服务
+  ai-tp-core:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-tp-os-core
+    hostname: ai-tp-core
+    volumes:
+      - ./:/ai-tp-os
+      - ai-tp-data:/data
+      - ai-tp-models:/models
+      - ai-tp-storage:/storage
+    ports:
+      - "11434:11434"  # Ollama API
+      - "3000:3000"    # 应用层服务
+      - "8080:8080"    # AI-TP Gateway
+    environment:
+      - AI_TP_MODE=standalone
+      - AI_TP_STORAGE_BACKEND=sqlite
+      - AI_TP_NETWORK_ENABLED=true
+      - OLLAMA_HOST=0.0.0.0:11434
+      - OLLAMA_MODELS=/models
+    networks:
+      - ai-tp-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # Ollama 本地推理服务（独立容器，可选）
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ai-tp-ollama
+    hostname: ollama
+    volumes:
+      - ai-tp-models:/root/.ollama
+    ports:
+      - "11435:11434"
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    networks:
+      - ai-tp-network
+    restart: unless-stopped
+    profiles:
+      - gpu
+      - distributed
+
+  # Redis 缓存/消息队列
+  redis:
+    image: redis:7-alpine
+    container_name: ai-tp-redis
+    hostname: redis
+    volumes:
+      - ai-tp-redis:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - ai-tp-network
+    restart: unless-stopped
+
+  # SQLite Web 管理界面（开发用）
+  sqlite-web:
+    image: coleifer/sqlite-web:latest
+    container_name: ai-tp-sqlite-web
+    hostname: sqlite-web
+    volumes:
+      - ai-tp-storage:/data
+    ports:
+      - "8081:8080"
+    environment:
+      - SQLITE_DATABASE=/data/ai-tp.db
+    networks:
+      - ai-tp-network
+    profiles:
+      - dev
+    restart: unless-stopped
+
+  # AI-TP 网络发现服务
+  ai-tp-discovery:
+    build:
+      context: ./core/network
+      dockerfile: Dockerfile
+    container_name: ai-tp-discovery
+    hostname: ai-tp-discovery
+    ports:
+      - "8472:8472/udp"
+      - "8473:8473/tcp"
+    environment:
+      - DISCOVERY_PORT=8472
+      - DISCOVERY_MODE=hybrid
+    networks:
+      - ai-tp-network
+    profiles:
+      - distributed
+      - p2p
+    restart: unless-stopped
+
+volumes:
+  ai-tp-data:
+    driver: local
+  ai-tp-models:
+    driver: local
+  ai-tp-storage:
+    driver: local
+  ai-tp-redis:
+    driver: local
+
+networks:
+  ai-tp-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

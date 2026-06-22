@@ -1,13 +1,16 @@
 """
 AI-TP OS - Ollama 本地推理客户端
 以底层系统为本体，为应用层提供统一的本地 LLM 推理能力
+
+使用 urllib（标准库）替代 requests，零外部依赖。
 """
 
 import json
 import time
+import urllib.request
+import urllib.error
+import ssl
 from typing import Any, Dict, Iterator, List, Optional
-
-import requests
 
 
 class OllamaClient:
@@ -19,34 +22,57 @@ class OllamaClient:
     def __init__(self, host: str = "http://localhost:11434", timeout: int = 120):
         self.host = host.rstrip("/")
         self.timeout = timeout
-        self._session = requests.Session()
+        # 创建可复用的 SSL context
+        self._ssl_context = ssl.create_default_context()
 
-    def _request(self, method: str, endpoint: str, **kwargs) -> requests.Response:
-        """发送 HTTP 请求"""
+    def _request(
+        self,
+        method: str,
+        endpoint: str,
+        data: Optional[bytes] = None,
+        stream: bool = False,
+    ):
+        """
+        发送 HTTP 请求，返回响应对象。
+        stream=True 时返回原始 urllib.response 对象用于逐行读取。
+        """
         url = f"{self.host}/api/{endpoint}"
-        kwargs.setdefault("timeout", self.timeout)
-        return self._session.request(method, url, **kwargs)
+        req = urllib.request.Request(url, data=data, method=method)
+        req.add_header("Content-Type", "application/json")
+
+        try:
+            resp = urllib.request.urlopen(
+                req, timeout=self.timeout, context=self._ssl_context
+            )
+            return resp
+        except urllib.error.HTTPError as e:
+            # 将 HTTP 错误包装，让调用方可以处理
+            raise RuntimeError(
+                f"Ollama HTTP {e.code}: {e.reason} - {e.read().decode('utf-8', errors='replace')}"
+            ) from e
+        except urllib.error.URLError as e:
+            raise RuntimeError(
+                f"Ollama connection error: {e.reason}"
+            ) from e
 
     def list_models(self) -> List[Dict[str, Any]]:
         """列出本地可用的模型"""
         resp = self._request("GET", "tags")
-        resp.raise_for_status()
-        return resp.json().get("models", [])
+        body = resp.read().decode("utf-8")
+        return json.loads(body).get("models", [])
 
     def pull_model(self, model: str, stream: bool = True) -> Iterator[str]:
         """拉取模型"""
-        resp = self._request(
-            "POST", "pull",
-            json={"name": model, "stream": stream},
-            stream=stream,
-        )
-        resp.raise_for_status()
+        payload = json.dumps({"name": model, "stream": stream}).encode("utf-8")
+        resp = self._request("POST", "pull", data=payload, stream=stream)
+
         if stream:
-            for line in resp.iter_lines():
-                if line:
-                    yield line.decode("utf-8")
+            for line in resp:
+                decoded = line.decode("utf-8").strip()
+                if decoded:
+                    yield decoded
         else:
-            yield resp.text
+            yield resp.read().decode("utf-8")
 
     def generate(
         self,
@@ -61,7 +87,7 @@ class OllamaClient:
         生成文本（单次对话）
         兼容 OpenAI 的 completions 接口风格
         """
-        payload = {
+        payload: Dict[str, Any] = {
             "model": model,
             "prompt": prompt,
             "stream": stream,
@@ -73,13 +99,13 @@ class OllamaClient:
         if options:
             payload["options"] = options
 
-        resp = self._request("POST", "generate", json=payload, stream=stream)
-        resp.raise_for_status()
+        data = json.dumps(payload).encode("utf-8")
+        resp = self._request("POST", "generate", data=data, stream=stream)
 
         if stream:
-            return {"stream": resp.iter_lines()}
+            return {"stream": resp
 
-        return resp.json()
+        return json.loads(resp.read().decode("utf-8"))
 
     def chat(
         self,
@@ -93,7 +119,7 @@ class OllamaClient:
         聊天对话（多轮）
         兼容 OpenAI 的 chat.completions 接口风格
         """
-        payload = {
+        payload: Dict[str, Any] = {
             "model": model,
             "messages": messages,
             "stream": stream,
@@ -103,13 +129,13 @@ class OllamaClient:
         if options:
             payload["options"] = options
 
-        resp = self._request("POST", "chat", json=payload, stream=stream)
-        resp.raise_for_status()
+        data = json.dumps(payload).encode("utf-8")
+        resp = self._request("POST", "chat", data=data, stream=stream)
 
         if stream:
-            return {"stream": resp.iter_lines()}
+            return {"stream": resp
 
-        return resp.json()
+        return json.loads(resp.read().decode("utf-8"))
 
     def embeddings(
         self,
@@ -121,16 +147,16 @@ class OllamaClient:
         获取文本嵌入向量
         用于 RAG 检索
         """
-        payload = {
+        payload: Dict[str, Any] = {
             "model": model,
             "prompt": prompt,
         }
         if options:
             payload["options"] = options
 
-        resp = self._request("POST", "embeddings", json=payload)
-        resp.raise_for_status()
-        return resp.json().get("embedding", [])
+        data = json.dumps(payload).encode("utf-8")
+        resp = self._request("POST", "embeddings", data=data)
+        return json.loads(resp.read().decode("utf-8")).get("embedding", [])
 
     def create_embedding(
         self,
@@ -170,7 +196,7 @@ class OllamaClient:
         OpenAI 兼容的 chat.completions 接口
         让应用层可以无缝切换本地/云推理
         """
-        options = {}
+        options: Dict[str, Any] = {}
         if temperature is not None:
             options["temperature"] = temperature
         if max_tokens is not None:
@@ -215,15 +241,11 @@ class OllamaClient:
     def health(self) -> bool:
         """检查 Ollama 服务是否健康"""
         try:
-            resp = self._request("GET", "tags", timeout=5)
-            return resp.status_code == 200
+            resp = self._request("GET", "tags")
+            resp.read()  # 消费响应体
+            return True
         except Exception:
             return False
-
-    def __del__(self):
-        """清理资源"""
-        if hasattr(self, "_session"):
-            self._session.close()
 
 
 class InferenceEngine:
@@ -299,6 +321,11 @@ class InferenceEngine:
         for line in stream:
             if isinstance(line, bytes):
                 line = line.decode("utf-8")
+            else:
+                line = line.decode("utf-8") if hasattr(line, "decode") else str(line)
+            line = line.strip()
+            if not line:
+                continue
             try:
                 data = json.loads(line)
                 chunk = data.get("message", {}).get("content", "")

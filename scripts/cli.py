@@ -71,7 +71,7 @@ def cmd_status(args):
         
         # 测试存储
         test_key = "_status_test_"
-        if storage.set(test_key, "test"):
+        if storage.put(test_key, "test"):
             value = storage.get(test_key)
             if value == "test":
                 print(f"  状态: ✅ 正常")
@@ -315,7 +315,7 @@ def cmd_storage(args):
             except json.JSONDecodeError:
                 value = args.value
             
-            if storage.set(args.key, value):
+            if storage.put(args.key, value):
                 print(f"✅ 已设置: {args.key} = {value}")
             else:
                 print(f"❌ 设置失败: {args.key}")

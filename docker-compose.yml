@@ -84,25 +84,25 @@ services:
       - dev
     restart: unless-stopped
 
-  # AI-TP 网络发现服务
-  ai-tp-discovery:
-    build:
-      context: ./core/network
-      dockerfile: Dockerfile
-    container_name: ai-tp-discovery
-    hostname: ai-tp-discovery
-    ports:
-      - "8472:8472/udp"
-      - "8473:8473/tcp"
-    environment:
-      - DISCOVERY_PORT=8472
-      - DISCOVERY_MODE=hybrid
-    networks:
-      - ai-tp-network
-    profiles:
-      - distributed
-      - p2p
-    restart: unless-stopped
+  # AI-TP 网络发现服务 (TODO: 需要 core/network/Dockerfile)
+  # ai-tp-discovery:
+  #   build:
+  #     context: ./core/network
+  #     dockerfile: Dockerfile
+  #   container_name: ai-tp-discovery
+  #   hostname: ai-tp-discovery
+  #   ports:
+  #     - "8472:8472/udp"
+  #     - "8473:8473/tcp"
+  #   environment:
+  #     - DISCOVERY_PORT=8472
+  #     - DISCOVERY_MODE=hybrid
+  #   networks:
+  #     - ai-tp-network
+  #   profiles:
+  #     - distributed
+  #     - p2p
+  #   restart: unless-stopped
 
 volumes:
   ai-tp-data:

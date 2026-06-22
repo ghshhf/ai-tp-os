@@ -41,7 +41,7 @@ class StorageBackend(ABC):
 class SQLiteBackend(StorageBackend):
     """SQLite 存储后端"""
 
-    def __init__(self, db_path: str = "/data/ai-tp.db"):
+    def __init__(self, db_path: str = "data/ai-tp.db"):
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._local = threading.local()

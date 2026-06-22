@@ -1,0 +1,1 @@
+{"compute": {"backend": "ollama", "ollama_host": "http://localhost:11434", "default_model": "qwen2.5:0.5b"}, "storage": {"backend": "sqlite", "sqlite_path": "/home/node/.openclaw/workspace/ai-tp-os/data/ai-tp.db"}, "network": {"enabled": false, "mode": "local"}}

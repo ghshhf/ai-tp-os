@@ -1,7 +1,25 @@
-.env
+# Python
 __pycache__/
-*.pyc
-.venv/
-.ai-tp/
-*.egg-info/
+*.py[cod]
+venv/
+env/
+ENV/
+.pytest_cache/
+
+# OS
 .DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# AI-TP OS
+data/*.db
+logs/
+*.log
+.env
+
+# Dependencies
+node_modules/
+package-lock.json
